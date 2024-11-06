@@ -33,7 +33,12 @@ service Greeter {
 
 // The request message containing the user's name.
 message HelloRequest {
-  string name = 1;
+  int32 transaction_id= 1;
+  string client_ip= 2;
+  string domain_name= 3;
+  string query_type= 4;
+  string timestamp= 5;
+
 }
 
 // The response message containing the greetings

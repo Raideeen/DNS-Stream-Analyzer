@@ -28,14 +28,18 @@ class Greeter(helloworld_pb2_grpc.GreeterServicer):
     def SayHello(self, request, context):
         # Exemple de document à insérer
         document = {
-            "message": "Hello, %s!" % request.name,
-            "timestamp": time.time() 
+            "transaction_id": request.transaction_id,
+            "client_ip": request.client_ip,
+            "domain_name": request.domain_name,
+            "query_type": request.query_type,
+            "timestamp": request.timestamp,
+
         }
 
         # Insertion du document dans la collection
         result = self.collection.insert_one(document)
 
-        return helloworld_pb2.HelloReply(message="Hello, %s!" % request.name)
+        return helloworld_pb2.HelloReply(message="Hello, %s!" % request.domain_name)
 
 
 def serve():

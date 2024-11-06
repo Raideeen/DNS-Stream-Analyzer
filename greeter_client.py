@@ -29,7 +29,8 @@ def run():
     print("Will try to greet world ...")
     with grpc.insecure_channel("localhost:50051") as channel:
         stub = helloworld_pb2_grpc.GreeterStub(channel)
-        response = stub.SayHello(helloworld_pb2.HelloRequest(name="lucile test mongo mardi"))
+        response = stub.SayHello(helloworld_pb2.HelloRequest(transaction_id = 43981, client_ip= "192.168.1.100", domain_name= "example.com", 
+                                                             query_type= "A", timestamp= "2024-10-04T10:30:00Z"))
     print("Greeter client received: " + response.message)
 
 
