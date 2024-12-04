@@ -16,7 +16,7 @@ const (
 	address = "localhost:50051" // Address of the gRPC server
 )
 
-var possibleDomains [4]string = [4]string{"mywebsite.com", "api.mywebsite.com", "cdn.mywebsite.com", "blog.mywebsite.commm"}
+var possibleDomains [4]string = [4]string{"mywebsite.com", "api.mywebsite.com", "cdn.mywebsite.com", "blog.mywebsite.com"}
 var possibleQueryType [2]string = [2]string{"A", "AAAA"}
 
 func randomIPAddress() string {
