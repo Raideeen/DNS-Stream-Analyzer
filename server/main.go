@@ -25,6 +25,7 @@ const (
 // server implements the gRPC service
 type server struct {
 	pb.UnimplementedDnsServiceServer
+
 	mongoClient *mongo.Client
 }
 
