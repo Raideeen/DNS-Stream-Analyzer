@@ -1,12 +1,38 @@
 services:
   server:
+    depends_on:
+      - mongodb
     build:
       context: .
       dockerfile: docker/server/Dockerfile
+    container_name: grpc-server
+    hostname: grpc-server
+    networks:
+      - dns-stream-analyzer-network
     ports:
       - "50051:50051"
-      - "27017:27017"
   client:
     build:
       context: .
       dockerfile: docker/client/Dockerfile
+    container_name: dns-client
+    networks:
+      - dns-stream-analyzer-network
+  mongodb:
+    image: 'mongodb/mongodb-community-server:latest'
+    container_name: mongodb
+    hostname: db
+    networks:
+      - dns-stream-analyzer-network
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-dns:/mongodb/mongodb-data
+
+volumes:
+  mongodb-dns:
+
+
+networks:
+  dns-stream-analyzer-network:
+    driver: bridge

@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	address = "localhost:50051" // Address of the gRPC server
+	address = "grpc-server:50051" // Address of the gRPC server with the hostname defined in the compose.yml
 )
 
 var possibleDomains [4]string = [4]string{"mywebsite.com", "api.mywebsite.com", "cdn.mywebsite.com", "blog.mywebsite.com"}

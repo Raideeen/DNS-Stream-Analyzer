@@ -17,7 +17,7 @@ import (
 
 const (
 	port     = ":50051"
-	mongoURI = "mongodb://localhost:27017"
+	mongoURI = "mongodb://db:27017" // "db" is the hostname of the mongoDB image in the compose.yml
 	dbName   = "dns_data"
 	collName = "requests"
 )
@@ -36,10 +36,10 @@ func (s *server) SendDnsRequest(
 
 	// Insert request into MongoDB
 	document := bson.D{
-		{"ip_address", req.GetIpAddress()},
-		{"domain", req.GetDomain()},
-		{"query_type", req.GetQueryType()},
-		{"timestamp", req.GetTimestamp()},
+		{Key: "ip_address", Value: req.GetIpAddress()},
+		{Key: "domain", Value: req.GetDomain()},
+		{Key: "query_type", Value: req.GetQueryType()},
+		{Key: "timestamp", Value: req.GetTimestamp()},
 	}
 
 	_, err := collection.InsertOne(ctx, document)
