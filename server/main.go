@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"time"
 
 	"github.com/Raideeen/DNS-Stream-Analyzer/pb"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -16,23 +18,22 @@ import (
 )
 
 const (
-	port     = ":50051"
-	mongoURI = "mongodb://db:27017" // "db" is the hostname of the mongoDB image in the compose.yml
-	dbName   = "dns_data"
-	collName = "requests"
+	port     string = ":50051"
+	mongoURI string = "mongodb://db:27017"
+	dbName   string = "dns_data"
+	collName string = "requests"
 )
 
-// server implements the gRPC service
+var topic string = "myTopic"
+
 type server struct {
 	pb.UnimplementedDnsServiceServer
-
 	mongoClient *mongo.Client
+	producer    *kafka.Producer
 }
 
 // SendDnsRequest handles incoming DNS requests
-func (s *server) SendDnsRequest(
-	ctx context.Context, req *pb.DnsRequest,
-) (*pb.DnsResponse, error) {
+func (s *server) SendDnsRequest(ctx context.Context, req *pb.DnsRequest) (*pb.DnsResponse, error) {
 	collection := s.mongoClient.Database(dbName).Collection(collName)
 
 	// Insert request into MongoDB
@@ -49,33 +50,87 @@ func (s *server) SendDnsRequest(
 		return &pb.DnsResponse{Status: "failed"}, err
 	}
 
-	log.Printf("Inserted DNS request: %v", document)
+	// Produce message to Kafka topic
+	message := fmt.Sprintf("IP: %s, Domain: %s, QueryType: %s, Timestamp: %d",
+		req.GetIpAddress(), req.GetDomain(), req.GetQueryType(), req.GetTimestamp())
+
+	s.producer.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
+		Value:          []byte(message),
+	}, nil)
+
+	log.Printf("Inserted DNS request and sent to Kafka: %v", document)
 	return &pb.DnsResponse{Status: "success"}, nil
 }
 
 func main() {
-	// Context for MongoDB connection
+	// MongoDB setup
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// MongoDB connection setup
 	mongoClient, err := mongo.Connect(options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatalf("Failed to connect to MongoDB: %v", err)
 	}
-	defer func() {
-		if err := mongoClient.Disconnect(ctx); err != nil {
-			log.Printf("Error disconnecting from MongoDB: %v", err)
-		} else {
-			log.Println("Disconnected from MongoDB")
-		}
-	}()
+	defer mongoClient.Disconnect(ctx)
 
-	// Test MongoDB connection
 	if err := mongoClient.Ping(ctx, readpref.Primary()); err != nil {
 		log.Fatalf("Failed to ping MongoDB: %v", err)
 	}
 	log.Println("Connected to MongoDB!")
+
+	// Kafka create topic
+	// Create admin client and topic before serving gRPC
+	adminClient, err := kafka.NewAdminClient(&kafka.ConfigMap{"bootstrap.servers": "broker:9092"})
+	if err != nil {
+		log.Fatalf("Failed to create Kafka admin client: %v", err)
+	}
+	defer adminClient.Close()
+
+	// Check and create the topic if it doesn't exist
+	metadata, err := adminClient.GetMetadata(&topic, false, 5000)
+	if err != nil {
+		log.Fatalf("Failed to get metadata: %v", err)
+	}
+	if _, ok := metadata.Topics[topic]; !ok {
+		results, err := adminClient.CreateTopics(
+			context.Background(),
+			[]kafka.TopicSpecification{{Topic: topic, NumPartitions: 1, ReplicationFactor: 1}},
+			nil,
+		)
+		if err != nil {
+			log.Fatalf("Failed to create topic: %v", err)
+		}
+		for _, result := range results {
+			if result.Error.Code() != kafka.ErrNoError {
+				log.Fatalf("Failed to create topic %s: %s", result.Topic, result.Error.String())
+			}
+		}
+		log.Printf("Topic %s created successfully", topic)
+	} else {
+		log.Printf("Topic %s already exists", topic)
+	}
+
+	// Kafka producer setup
+	producer, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "broker:9092"})
+	if err != nil {
+		log.Fatalf("Failed to create Kafka producer: %v", err)
+	}
+	defer producer.Close()
+
+	// Start producer delivery report handler in a separate goroutine
+	go func() {
+		for e := range producer.Events() {
+			switch ev := e.(type) {
+			case *kafka.Message:
+				if ev.TopicPartition.Error != nil {
+					log.Printf("Delivery failed: %v\n", ev.TopicPartition)
+				} else {
+					log.Printf("Delivered message to %v\n", ev.TopicPartition)
+				}
+			}
+		}
+	}()
 
 	// Start gRPC server
 	listener, err := net.Listen("tcp", port)
@@ -85,7 +140,10 @@ func main() {
 	grpcServer := grpc.NewServer()
 	reflection.Register(grpcServer)
 
-	pb.RegisterDnsServiceServer(grpcServer, &server{mongoClient: mongoClient})
+	pb.RegisterDnsServiceServer(grpcServer, &server{
+		mongoClient: mongoClient,
+		producer:    producer,
+	})
 
 	log.Printf("Server is listening on %v", port)
 	if err := grpcServer.Serve(listener); err != nil {

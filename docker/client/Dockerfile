@@ -17,7 +17,7 @@ COPY client/ client/
 COPY proto/ proto/
 COPY pb/ pb/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /client-app ./client/main.go
+RUN GOOS=linux go build -o /client-app ./client/main.go
 
 # Create a minimal image for the client application
 FROM gcr.io/distroless/base-debian12 AS client

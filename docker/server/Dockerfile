@@ -17,7 +17,7 @@ COPY server/ server/
 COPY proto/ proto/
 COPY pb/ pb/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /server-app ./server/main.go
+RUN GOOS=linux go build -o /server-app ./server/main.go
 
 # Create a minimal image for the server application
 FROM gcr.io/distroless/base-debian12 AS server
