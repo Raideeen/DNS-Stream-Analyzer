@@ -5,49 +5,34 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"time"
 
 	"github.com/Raideeen/DNS-Stream-Analyzer/pb"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
-	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
+	"github.com/go-redis/redis/v8"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
 const (
-	port     string = ":50051"
-	mongoURI string = "mongodb://db:27017"
-	dbName   string = "dns_data"
-	collName string = "requests"
+	port      string = ":50051"
+	redisAddr string = "redis:6379"
 )
 
 var topic string = "myTopic"
 
 type server struct {
 	pb.UnimplementedDnsServiceServer
-	mongoClient *mongo.Client
+	redisClient *redis.Client
 	producer    *kafka.Producer
 }
 
 // SendDnsRequest handles incoming DNS requests
 func (s *server) SendDnsRequest(ctx context.Context, req *pb.DnsRequest) (*pb.DnsResponse, error) {
-	collection := s.mongoClient.Database(dbName).Collection(collName)
-
-	// Insert request into MongoDB
-	document := bson.D{
-		{Key: "ip_address", Value: req.GetIpAddress()},
-		{Key: "domain", Value: req.GetDomain()},
-		{Key: "query_type", Value: req.GetQueryType()},
-		{Key: "timestamp", Value: req.GetTimestamp()},
-	}
-
-	_, err := collection.InsertOne(ctx, document)
-	if err != nil {
-		log.Printf("Failed to insert document: %v", err)
-		return &pb.DnsResponse{Status: "failed"}, err
+	// Check if IP is already marked as malicious in Redis
+	val, err := s.redisClient.Get(ctx, req.GetIpAddress()).Result()
+	if err == nil && val == "malicious" {
+		log.Printf("Blacklisted IP detected, blocking: %s", req.GetIpAddress())
+		return &pb.DnsResponse{Status: "blocked"}, nil
 	}
 
 	// Produce message to Kafka topic
@@ -59,25 +44,27 @@ func (s *server) SendDnsRequest(ctx context.Context, req *pb.DnsRequest) (*pb.Dn
 		Value:          []byte(message),
 	}, nil)
 
-	log.Printf("Inserted DNS request and sent to Kafka: %v", document)
+	log.Printf("Sent DNS request to Kafka: %v", message)
 	return &pb.DnsResponse{Status: "success"}, nil
 }
 
-func main() {
-	// MongoDB setup
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	mongoClient, err := mongo.Connect(options.Client().ApplyURI(mongoURI))
+// BlockIp handles blocking IPs based on consumer feedback
+func (s *server) BlockIp(ctx context.Context, req *pb.BlockIpRequest) (*pb.BlockIpResponse, error) {
+	err := s.redisClient.Set(ctx, req.GetIpAddress(), "malicious", 0).Err()
 	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
+		log.Printf("Failed to block IP: %v", err)
+		return &pb.BlockIpResponse{Status: "failed"}, err
 	}
-	defer mongoClient.Disconnect(ctx)
+	log.Printf("Blocked IP: %s", req.GetIpAddress())
+	return &pb.BlockIpResponse{Status: "success"}, nil
+}
 
-	if err := mongoClient.Ping(ctx, readpref.Primary()); err != nil {
-		log.Fatalf("Failed to ping MongoDB: %v", err)
-	}
-	log.Println("Connected to MongoDB!")
+func main() {
+	// Redis setup
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
+	defer redisClient.Close()
 
 	// Kafka create topic
 	// Create admin client and topic before serving gRPC
@@ -95,7 +82,7 @@ func main() {
 	if _, ok := metadata.Topics[topic]; !ok {
 		results, err := adminClient.CreateTopics(
 			context.Background(),
-			[]kafka.TopicSpecification{{Topic: topic, NumPartitions: 1, ReplicationFactor: 1}},
+			[]kafka.TopicSpecification{{Topic: topic, NumPartitions: 3, ReplicationFactor: 2}},
 			nil,
 		)
 		if err != nil {
@@ -141,7 +128,7 @@ func main() {
 	reflection.Register(grpcServer)
 
 	pb.RegisterDnsServiceServer(grpcServer, &server{
-		mongoClient: mongoClient,
+		redisClient: redisClient,
 		producer:    producer,
 	})
 

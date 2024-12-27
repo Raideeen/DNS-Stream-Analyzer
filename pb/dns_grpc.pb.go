@@ -19,6 +19,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DnsServiceClient interface {
 	SendDnsRequest(ctx context.Context, in *DnsRequest, opts ...grpc.CallOption) (*DnsResponse, error)
+	BlockIp(ctx context.Context, in *BlockIpRequest, opts ...grpc.CallOption) (*BlockIpResponse, error)
 }
 
 type dnsServiceClient struct {
@@ -38,11 +39,21 @@ func (c *dnsServiceClient) SendDnsRequest(ctx context.Context, in *DnsRequest, o
 	return out, nil
 }
 
+func (c *dnsServiceClient) BlockIp(ctx context.Context, in *BlockIpRequest, opts ...grpc.CallOption) (*BlockIpResponse, error) {
+	out := new(BlockIpResponse)
+	err := c.cc.Invoke(ctx, "/dns.DnsService/BlockIp", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DnsServiceServer is the server API for DnsService service.
 // All implementations must embed UnimplementedDnsServiceServer
 // for forward compatibility
 type DnsServiceServer interface {
 	SendDnsRequest(context.Context, *DnsRequest) (*DnsResponse, error)
+	BlockIp(context.Context, *BlockIpRequest) (*BlockIpResponse, error)
 	mustEmbedUnimplementedDnsServiceServer()
 }
 
@@ -52,6 +63,9 @@ type UnimplementedDnsServiceServer struct {
 
 func (UnimplementedDnsServiceServer) SendDnsRequest(context.Context, *DnsRequest) (*DnsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendDnsRequest not implemented")
+}
+func (UnimplementedDnsServiceServer) BlockIp(context.Context, *BlockIpRequest) (*BlockIpResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlockIp not implemented")
 }
 func (UnimplementedDnsServiceServer) mustEmbedUnimplementedDnsServiceServer() {}
 
@@ -84,6 +98,24 @@ func _DnsService_SendDnsRequest_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DnsService_BlockIp_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BlockIpRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DnsServiceServer).BlockIp(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/dns.DnsService/BlockIp",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DnsServiceServer).BlockIp(ctx, req.(*BlockIpRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DnsService_ServiceDesc is the grpc.ServiceDesc for DnsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -94,6 +126,10 @@ var DnsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendDnsRequest",
 			Handler:    _DnsService_SendDnsRequest_Handler,
+		},
+		{
+			MethodName: "BlockIp",
+			Handler:    _DnsService_BlockIp_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

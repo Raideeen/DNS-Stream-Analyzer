@@ -1,7 +1,7 @@
 services:
   server:
     depends_on:
-      - mongodb
+      - redis
       - broker
     build:
       context: .
@@ -21,17 +21,27 @@ services:
     container_name: dns-client
     networks:
       - dns-stream-analyzer-network
+  consumer:
+    depends_on:
+      - broker
+    build:
+      context: .
+      dockerfile: docker/consumer/Dockerfile
+    container_name: kafka-consumer
+    networks:
+      - dns-stream-analyzer-network
 
-  mongodb:
-    image: "mongodb/mongodb-community-server:latest"
-    container_name: mongodb
-    hostname: db
+  redis:
+    image: "redis:latest"
+    container_name: redis
+    hostname: redis
     networks:
       - dns-stream-analyzer-network
     ports:
-      - "27017:27017"
+      - "6379:6379"
     volumes:
-      - mongodb-dns:/data/db
+      - redis-data:/data
+
   broker:
     image: "apache/kafka:latest"
     container_name: broker
@@ -56,8 +66,21 @@ services:
     volumes:
       - kafka-dns:/data/
 
+  tests:
+    depends_on:
+      - server
+      - broker
+      - redis
+    build:
+      context: .
+      dockerfile: docker/tests/Dockerfile
+    networks:
+      - dns-stream-analyzer-network
+    profiles:
+      - tests
+
 volumes:
-  mongodb-dns: {}
+  redis-data: {}
   kafka-dns: {}
 
 networks:

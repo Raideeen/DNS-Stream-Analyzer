@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Raideeen/DNS-Stream-Analyzer/pb"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -46,23 +45,6 @@ func main() {
 
 	client := pb.NewDnsServiceClient(conn)
 
-	// Kafka consumer test
-	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": "broker:9092",
-		"group.id":          "myGroup",
-		"auto.offset.reset": "earliest",
-	})
-
-	if err != nil {
-		panic(err)
-	}
-
-	err = c.SubscribeTopics([]string{"myTopic", "^aRegex.*[Tt]opic"}, nil)
-
-	if err != nil {
-		panic(err)
-	}
-
 	for {
 		// Create a DNS request message
 
@@ -78,20 +60,6 @@ func main() {
 		if err != nil {
 			log.Printf("Error sending DNS request: %v", err)
 		}
-
-		// Kafka consumer test
-		msg, err := c.ReadMessage(time.Second)
-		if err == nil {
-			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
-		} else if !err.(kafka.Error).IsTimeout() {
-			// The client will automatically try to recover from all errors.
-			// Timeout is not considered an error because it is raised by
-			// ReadMessage in absence of messages.
-			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
-		}
-
 		time.Sleep(100 * time.Millisecond)
 	}
-
-	c.Close()
 }

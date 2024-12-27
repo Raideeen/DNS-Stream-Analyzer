@@ -6,6 +6,7 @@ option go_package = "./pb";
 
 service DnsService {
     rpc SendDnsRequest (DnsRequest) returns (DnsResponse);
+    rpc BlockIp(BlockIpRequest) returns (BlockIpResponse);
 }
 
 message DnsRequest {
@@ -16,5 +17,13 @@ message DnsRequest {
 }
 
 message DnsResponse {
+    string status = 1;
+}
+
+message BlockIpRequest {
+    string ip_address = 1;
+}
+
+message BlockIpResponse {
     string status = 1;
 }
