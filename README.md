@@ -151,6 +151,6 @@ For any questions or discussions about the project, please reach out to us at `a
 
 ## Acknowledgements
 
-This project was developed as part of *Cloud Data structure* course at [École supérieure d'ingénieurs Léonard-de-Vinci (ESILV)](https://www.esilv.fr/) located at Paris La Défense with our amazing team composed of [Lucile Dresler](https://www.linkedin.com/in/luciledresler/), [Louis Bessard](https://www.linkedin.com/in/louis-bessard/) and [myself](https://www.linkedin.com/in/adriendjebar/).
+This project was developed as part of *Cloud Data structure* course at [École supérieure d'ingénieurs Léonard-de-Vinci (ESILV)](https://www.esilv.fr/) located at Paris La Défense with our amazing team composed of [Lucile Dresler](https://www.linkedin.com/in/luciledresler/), [Louis Bessard](https://www.linkedin.com/in/louis-bessard/) [(Github)](https://github.com/LouSarbe) and [myself](https://www.linkedin.com/in/adriendjebar/).
 
 We would like to thanks our Cloud Data Structure professor but also researcher [Daniel Wladdimiro Cottet](https://www.linkedin.com/in/dwladdimiroc/) for his guidance and support.
